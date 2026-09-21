@@ -9,7 +9,7 @@ const options = {
       version: '1.0.0',
       description: 'Gestión de inscripciones, notas e historial de estados',
     },
-    servers: [{ url: `http://localhost:${process.env.PORT || 8083}` }],
+    servers: [{ url: `http://localhost:${process.env.PORT || 3003}` }],
     components: {
       parameters: {
         InscripcionId: {
