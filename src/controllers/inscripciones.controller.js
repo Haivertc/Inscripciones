@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const { Inscripcion, Nota, HistorialEstado } = require('../models');
 
 const NOT_FOUND_MSG = 'Inscripción no encontrada';
+const NOTA_NOT_FOUND_MSG = 'Nota no encontrada';
+const HISTORIAL_NOT_FOUND_MSG = 'Registro de historial no encontrado';
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -189,6 +191,120 @@ const addHistorial = async (req, res) => {
   }
 };
 
+const getNotaById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+
+    const nota = await Nota.findById(id);
+    if (!nota) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+    return res.status(200).json(nota);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const updateNota = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+
+    const data = pick(req.body, ['tipo', 'valor']);
+
+    const nota = await Nota.findByIdAndUpdate(id, data, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!nota) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+    return res.status(200).json(nota);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const deleteNota = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+
+    const nota = await Nota.findByIdAndDelete(id);
+    if (!nota) {
+      return res.status(404).json({ message: NOTA_NOT_FOUND_MSG });
+    }
+    return res.status(200).json({ message: 'Nota eliminada correctamente' });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getHistorialById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+
+    const historial = await HistorialEstado.findById(id);
+    if (!historial) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+    return res.status(200).json(historial);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const updateHistorial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+
+    const data = pick(req.body, ['estadoAnterior', 'estadoNuevo', 'motivo']);
+
+    const historial = await HistorialEstado.findByIdAndUpdate(id, data, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!historial) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+    return res.status(200).json(historial);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const deleteHistorial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+
+    const historial = await HistorialEstado.findByIdAndDelete(id);
+    if (!historial) {
+      return res.status(404).json({ message: HISTORIAL_NOT_FOUND_MSG });
+    }
+    return res.status(200).json({ message: 'Registro de historial eliminado correctamente' });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
 module.exports = {
   createInscripcion,
   getAllInscripciones,
@@ -197,4 +313,10 @@ module.exports = {
   deleteInscripcion,
   addNota,
   addHistorial,
+  getNotaById,
+  updateNota,
+  deleteNota,
+  getHistorialById,
+  updateHistorial,
+  deleteHistorial,
 };

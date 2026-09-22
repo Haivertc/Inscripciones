@@ -7,6 +7,12 @@ const {
   deleteInscripcion,
   addNota,
   addHistorial,
+  getNotaById,
+  updateNota,
+  deleteNota,
+  getHistorialById,
+  updateHistorial,
+  deleteHistorial,
 } = require('../controllers/inscripciones.controller');
 
 const router = Router();
@@ -232,5 +238,140 @@ router.post('/:id/notas', addNota);
  *         description: Error interno del servidor
  */
 router.post('/:id/historial', addHistorial);
+
+/**
+ * @openapi
+ * /api/inscripciones/notas/{id}:
+ *   get:
+ *     summary: Obtiene una nota por su ID
+ *     tags: [Notas]
+ *     parameters:
+ *       - $ref: '#/components/parameters/NotaId'
+ *     responses:
+ *       200:
+ *         description: Nota encontrada
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Nota' }
+ *       404:
+ *         description: Nota no encontrada
+ *       500:
+ *         description: Error interno del servidor
+ *   put:
+ *     summary: Actualiza una nota por su ID
+ *     tags: [Notas]
+ *     parameters:
+ *       - $ref: '#/components/parameters/NotaId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tipo: { type: string, example: 'Parcial 1' }
+ *               valor: { type: number, example: 4.5 }
+ *     responses:
+ *       200:
+ *         description: Nota actualizada
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Nota' }
+ *       400:
+ *         description: Datos inválidos
+ *       404:
+ *         description: Nota no encontrada
+ *       500:
+ *         description: Error interno del servidor
+ *   delete:
+ *     summary: Elimina una nota por su ID
+ *     tags: [Notas]
+ *     parameters:
+ *       - $ref: '#/components/parameters/NotaId'
+ *     responses:
+ *       200:
+ *         description: Nota eliminada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: 'Nota eliminada correctamente' }
+ *       404:
+ *         description: Nota no encontrada
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/notas/:id', getNotaById);
+router.put('/notas/:id', updateNota);
+router.delete('/notas/:id', deleteNota);
+
+/**
+ * @openapi
+ * /api/inscripciones/historial/{id}:
+ *   get:
+ *     summary: Obtiene un registro de historial por su ID
+ *     tags: [Historial]
+ *     parameters:
+ *       - $ref: '#/components/parameters/HistorialId'
+ *     responses:
+ *       200:
+ *         description: Registro de historial encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/HistorialEstado' }
+ *       404:
+ *         description: Registro de historial no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ *   put:
+ *     summary: Actualiza un registro de historial por su ID
+ *     tags: [Historial]
+ *     parameters:
+ *       - $ref: '#/components/parameters/HistorialId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               estadoAnterior: { type: string, example: 'activa' }
+ *               estadoNuevo: { type: string, example: 'retirada' }
+ *               motivo: { type: string, example: 'Solicitud del estudiante' }
+ *     responses:
+ *       200:
+ *         description: Registro de historial actualizado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/HistorialEstado' }
+ *       400:
+ *         description: Datos inválidos
+ *       404:
+ *         description: Registro de historial no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ *   delete:
+ *     summary: Elimina un registro de historial por su ID
+ *     tags: [Historial]
+ *     parameters:
+ *       - $ref: '#/components/parameters/HistorialId'
+ *     responses:
+ *       200:
+ *         description: Registro de historial eliminado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: 'Registro de historial eliminado correctamente' }
+ *       404:
+ *         description: Registro de historial no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/historial/:id', getHistorialById);
+router.put('/historial/:id', updateHistorial);
+router.delete('/historial/:id', deleteHistorial);
 
 module.exports = router;

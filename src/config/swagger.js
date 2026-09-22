@@ -20,6 +20,22 @@ const options = {
           description: 'ID de la inscripción (ObjectId de MongoDB)',
           example: '665f1c2e8b1e4a0012345678',
         },
+        NotaId: {
+          in: 'path',
+          name: 'id',
+          required: true,
+          schema: { type: 'string' },
+          description: 'ID de la nota (ObjectId de MongoDB)',
+          example: '665f1c2e8b1e4a0012345679',
+        },
+        HistorialId: {
+          in: 'path',
+          name: 'id',
+          required: true,
+          schema: { type: 'string' },
+          description: 'ID del registro de historial (ObjectId de MongoDB)',
+          example: '665f1c2e8b1e4a001234567a',
+        },
       },
       schemas: {
         Nota: {
