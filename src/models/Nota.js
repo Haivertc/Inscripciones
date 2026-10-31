@@ -1,24 +1,17 @@
-const mongoose = require('mongoose');
+// Campos editables y sus reglas (antes en el esquema de Mongoose)
+const campos = {
+  tipo: { tipo: 'string', trim: true, requerido: 'tipo es obligatorio' },
+  valor: { tipo: 'number', requerido: 'valor es obligatorio' },
+};
 
-const notaSchema = new mongoose.Schema(
-  {
-    inscripcionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Inscripcion',
-      required: [true, 'inscripcionId es obligatorio'],
-      index: true,
-    },
-    tipo: {
-      type: String,
-      required: [true, 'tipo es obligatorio'],
-      trim: true,
-    },
-    valor: {
-      type: Number,
-      required: [true, 'valor es obligatorio'],
-    },
-  },
-  { timestamps: true }
-);
+const serializarNota = (nota) => ({
+  _id: nota.id,
+  inscripcionId: nota.inscripcionId,
+  tipo: nota.tipo,
+  valor: nota.valor,
+  createdAt: nota.createdAt,
+  updatedAt: nota.updatedAt,
+  __v: 0,
+});
 
-module.exports = mongoose.model('Nota', notaSchema);
+module.exports = { nombre: 'Nota', campos, serializarNota };

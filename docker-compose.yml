@@ -1,0 +1,15 @@
+# PostgreSQL local para desarrollo (en producción se usa AWS RDS).
+# Base independiente del módulo Inscripciones; puerto 5435 para no chocar con las de otros módulos.
+services:
+  postgres:
+    image: postgres:16
+    container_name: inscripciones-postgres
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5435:5432"
+    volumes:
+      - inscripciones-data:/var/lib/postgresql/data
+
+volumes:
+  inscripciones-data:

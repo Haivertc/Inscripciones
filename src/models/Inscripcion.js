@@ -1,48 +1,29 @@
-const mongoose = require('mongoose');
+const { serializarNota } = require('./Nota');
+const { serializarHistorial } = require('./HistorialEstado');
 
-const inscripcionSchema = new mongoose.Schema(
-  {
-    // IDs de otros microservicios: no son ObjectId de esta base de datos
-    estudianteId: {
-      type: String,
-      required: [true, 'estudianteId es obligatorio'],
-      trim: true,
-      index: true,
-    },
-    cursoId: {
-      type: String,
-      required: [true, 'cursoId es obligatorio'],
-      trim: true,
-      index: true,
-    },
-    periodo: {
-      type: String,
-      required: [true, 'periodo es obligatorio'],
-      trim: true,
-    },
-    estado: {
-      type: String,
-      default: 'activa',
-      trim: true,
-    },
-  },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
-);
+// Campos editables y sus reglas (antes en el esquema de Mongoose)
+const campos = {
+  // IDs de otros microservicios: no son ids de esta base de datos
+  estudianteId: { tipo: 'string', trim: true, requerido: 'estudianteId es obligatorio' },
+  cursoId: { tipo: 'string', trim: true, requerido: 'cursoId es obligatorio' },
+  periodo: { tipo: 'string', trim: true, requerido: 'periodo es obligatorio' },
+  estado: { tipo: 'string', trim: true },
+};
 
-inscripcionSchema.virtual('notas', {
-  ref: 'Nota',
-  localField: '_id',
-  foreignField: 'inscripcionId',
+// Mismo JSON que producía Mongoose: _id, __v y el virtual "id"; notas e historial
+// solo cuando se cargaron (equivalente al populate)
+const serializarInscripcion = (inscripcion) => ({
+  _id: inscripcion.id,
+  estudianteId: inscripcion.estudianteId,
+  cursoId: inscripcion.cursoId,
+  periodo: inscripcion.periodo,
+  estado: inscripcion.estado,
+  createdAt: inscripcion.createdAt,
+  updatedAt: inscripcion.updatedAt,
+  __v: 0,
+  ...(inscripcion.notas && { notas: inscripcion.notas.map(serializarNota) }),
+  ...(inscripcion.historial && { historial: inscripcion.historial.map(serializarHistorial) }),
+  id: inscripcion.id,
 });
 
-inscripcionSchema.virtual('historial', {
-  ref: 'HistorialEstado',
-  localField: '_id',
-  foreignField: 'inscripcionId',
-});
-
-module.exports = mongoose.model('Inscripcion', inscripcionSchema);
+module.exports = { nombre: 'Inscripcion', campos, serializarInscripcion };

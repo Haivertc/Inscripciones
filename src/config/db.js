@@ -1,20 +1,20 @@
-const mongoose = require('mongoose');
+const { PrismaClient } = require('@prisma/client');
+
+// Instancia única compartida por todo el servicio
+const prisma = new PrismaClient();
 
 const dbConnect = async () => {
-  const uri = process.env.MONGO_URI;
-
-  if (!uri) {
-    throw new Error('La variable de entorno MONGO_URI no está definida');
+  if (!process.env.DATABASE_URL) {
+    throw new Error('La variable de entorno DATABASE_URL no está definida');
   }
 
   try {
-    const conn = await mongoose.connect(uri);
-    console.log(`MongoDB conectado: ${conn.connection.host}/${conn.connection.name}`);
-    return conn;
+    await prisma.$connect();
+    console.log('PostgreSQL conectado mediante Prisma');
   } catch (error) {
-    console.error(`Error al conectar a MongoDB: ${error.message}`);
+    console.error(`Error al conectar a PostgreSQL: ${error.message}`);
     throw error;
   }
 };
 
-module.exports = dbConnect;
+module.exports = { prisma, dbConnect };

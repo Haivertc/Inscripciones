@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Los ids conservan el formato de ObjectId (24 hex) que usaba MongoDB, para no
+// alterar el contrato del API (_id) ni las referencias que guardan otros módulos.
+
+model Inscripcion {
+  id           String   @id @db.VarChar(24)
+  // IDs de otros microservicios (Estudiantes, Materias): texto libre, SIN llave
+  // foránea, para mantener el aislamiento entre las bases de cada módulo
+  estudianteId String   @map("estudiante_id") @db.VarChar(64)
+  cursoId      String   @map("curso_id") @db.VarChar(64)
+  periodo      String   @db.VarChar(20)
+  estado       String   @default("activa") @db.VarChar(30)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  notas     Nota[]
+  historial HistorialEstado[]
+
+  @@index([estudianteId])
+  @@index([cursoId])
+  @@map("inscripciones")
+}
+
+model Nota {
+  id            String      @id @db.VarChar(24)
+  inscripcionId String      @map("inscripcion_id") @db.VarChar(24)
+  inscripcion   Inscripcion @relation(fields: [inscripcionId], references: [id], onDelete: Cascade)
+  tipo          String      @db.VarChar(100)
+  valor         Float
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@index([inscripcionId])
+  @@map("notas")
+}
+
+model HistorialEstado {
+  id             String      @id @db.VarChar(24)
+  inscripcionId  String      @map("inscripcion_id") @db.VarChar(24)
+  inscripcion    Inscripcion @relation(fields: [inscripcionId], references: [id], onDelete: Cascade)
+  estadoAnterior String?     @map("estado_anterior") @db.VarChar(30)
+  estadoNuevo    String      @map("estado_nuevo") @db.VarChar(30)
+  motivo         String?     @db.VarChar(500)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  @@index([inscripcionId])
+  @@map("historial_estados")
+}
