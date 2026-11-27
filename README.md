@@ -202,7 +202,7 @@ Sale con código `0` si todo coincide con lo esperado y `1` si no.
 
 **Modo idempotencia**: envía 2 veces la misma inscripción con la misma clave (usa el primer
 estudiante del archivo; elige uno sin inscripción en el curso, y un curso con cupo libre) y verifica
-que haya **1 sola fila**, que el cupo se descuente una sola vez y que el 2.º envío sea la réplica.
+que haya **1 sola fila**, que el cupo se descuente una sola vez y que el 2.º envío sea la réplica (`Idempotent-Replayed: true`; con `--simultaneo`, exactamente uno de los dos). Si falta el encabezado, la prueba falla (exit 1).
 Con `--simultaneo` los dos envíos salen a la vez (prueba el camino de la compensación por `P2002`).
 
 ```bash
@@ -212,7 +212,7 @@ python scripts/prueba_ultimo_cupo.py --gateway-url http://localhost:3000 --token
 
 > El modo idempotencia exige que el Gateway reenvíe el encabezado `Idempotency-Key` al módulo
 > (y devuelva `Idempotent-Replayed`). Si no lo hace, el 2.º envío llega sin clave, recibe
-> `409 InscripcionDuplicada` y el script lo avisa.
+> `409 InscripcionDuplicada` y la prueba falla (exit 1) indicando la causa probable.
 
 ## Nota de integración
 
