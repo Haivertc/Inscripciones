@@ -18,6 +18,9 @@ model Inscripcion {
   cursoId      String   @map("curso_id") @db.VarChar(64)
   periodo      String   @db.VarChar(20)
   estado       String   @default("activa") @db.VarChar(30)
+  // Clave enviada por el cliente en el encabezado Idempotency-Key: un reintento
+  // con la misma clave devuelve la misma inscripción en vez de crear otra
+  idempotencyKey String? @unique @map("idempotency_key") @db.VarChar(100)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -26,6 +29,9 @@ model Inscripcion {
 
   @@index([estudianteId])
   @@index([cursoId])
+  // Un estudiante tiene como máximo UNA fila por curso. Al cancelar no se borra:
+  // se marca 'cancelada' y, si se vuelve a inscribir, se reactiva esa misma fila.
+  @@unique([estudianteId, cursoId], map: "uq_insc")
   @@map("inscripciones")
 }
 

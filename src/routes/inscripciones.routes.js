@@ -76,8 +76,15 @@ const router = Router();
  *       500:
  *         description: Error interno del servidor
  *   post:
- *     summary: Crea una inscripción
+ *     summary: Crea una inscripción (valida estudiante y curso, y reserva el cupo en Materias)
+ *     description: |
+ *       Orden: validar body → idempotencia → validar estudiante (Estudiantes) y curso (Materias)
+ *       → duplicados → reservar cupo (Materias) → guardar. Si el guardado falla, se libera el
+ *       cupo (compensación). Si el estudiante tenía una inscripción **cancelada** en el curso,
+ *       se reactiva esa misma fila.
  *     tags: [Inscripciones]
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdempotencyKey'
  *     requestBody:
  *       required: true
  *       content:
@@ -91,14 +98,32 @@ const router = Router();
  *               periodo: { type: string, example: '2026-2' }
  *     responses:
  *       201:
- *         description: Inscripción creada
+ *         description: Inscripción creada, reactivada o (con la misma Idempotency-Key) la ya existente
+ *         headers:
+ *           Idempotent-Replayed:
+ *             description: "'true' cuando la respuesta es la réplica de una petición anterior con la misma clave"
+ *             schema: { type: string, example: 'true' }
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Inscripcion' }
  *       400:
- *         description: Datos inválidos
- *       500:
- *         description: Error interno del servidor
+ *         $ref: '#/components/responses/Error400'
+ *       409:
+ *         description: CupoAgotado (sin cupos en el curso) o InscripcionDuplicada (el estudiante ya está inscrito)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *             examples:
+ *               cupo: { value: { message: 'El curso MAT-101 no tiene cupos disponibles', errorType: CupoAgotado } }
+ *               duplicada: { value: { message: 'El estudiante ya está inscrito en este curso', errorType: InscripcionDuplicada } }
+ *       422:
+ *         description: EstudianteNoExiste, EstudianteInactivo, CursoNoExiste, CursoInactivo o IdempotencyKeyReutilizada
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *             example: { message: 'El estudiante 1001 no está ACTIVO', errorType: EstudianteInactivo }
+ *       503:
+ *         $ref: '#/components/responses/Error503'
  */
 router.post('/', createInscripcion);
 router.get('/', getAllInscripciones);
@@ -123,6 +148,11 @@ router.get('/', getAllInscripciones);
  *         description: Error interno del servidor
  *   put:
  *     summary: Actualiza los datos básicos de una inscripción
+ *     description: |
+ *       estudianteId y cursoId no se pueden cambiar (se saltaría el control de cupos); se aceptan
+ *       solo si llegan con el mismo valor. Para cambiar de curso: cancelar (DELETE) e inscribir (POST).
+ *       estado='cancelada' aplica la misma lógica que DELETE (historial + liberar cupo; la respuesta
+ *       incluye cupoLiberado). Una inscripción cancelada no se reactiva por PUT: usar POST.
  *     tags: [Inscripciones]
  *     parameters:
  *       - $ref: '#/components/parameters/InscripcionId'
@@ -133,8 +163,8 @@ router.get('/', getAllInscripciones);
  *           schema:
  *             type: object
  *             properties:
- *               estudianteId: { type: string, example: '1001' }
- *               cursoId: { type: string, example: 'MAT-101' }
+ *               estudianteId: { type: string, example: '1001', description: 'Solo el valor actual' }
+ *               cursoId: { type: string, example: 'MAT-101', description: 'Solo el valor actual' }
  *               periodo: { type: string, example: '2026-2' }
  *               estado: { type: string, example: 'retirada' }
  *     responses:
@@ -144,29 +174,35 @@ router.get('/', getAllInscripciones);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Inscripcion' }
  *       400:
- *         description: Datos inválidos
+ *         $ref: '#/components/responses/Error400'
  *       404:
- *         description: Inscripción no encontrada
+ *         $ref: '#/components/responses/Error404'
+ *       422:
+ *         description: CambioNoPermitido (cambio de estudianteId/cursoId, o reactivar una cancelada)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
  *       500:
- *         description: Error interno del servidor
+ *         $ref: '#/components/responses/Error500'
  *   delete:
- *     summary: Elimina una inscripción junto con sus notas e historial
+ *     summary: Cancela una inscripción (no la borra) y libera su cupo en Materias
+ *     description: |
+ *       Cambia el estado a 'cancelada' y registra el historial en una transacción; luego llama
+ *       a liberar-cupo. Las notas y el historial se conservan. Si ya estaba cancelada responde
+ *       200 sin volver a liberar.
  *     tags: [Inscripciones]
  *     parameters:
  *       - $ref: '#/components/parameters/InscripcionId'
  *     responses:
  *       200:
- *         description: Inscripción eliminada
+ *         description: Inscripción cancelada (cupoLiberado indica si Materias devolvió el cupo)
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message: { type: string, example: 'Inscripción eliminada correctamente' }
+ *             schema: { $ref: '#/components/schemas/Cancelacion' }
  *       404:
- *         description: Inscripción no encontrada
+ *         $ref: '#/components/responses/Error404'
  *       500:
- *         description: Error interno del servidor
+ *         $ref: '#/components/responses/Error500'
  */
 router.get('/:id', getInscripcionById);
 router.put('/:id', updateInscripcion);
@@ -210,6 +246,11 @@ router.post('/:id/notas', addNota);
  * /api/inscripciones/{id}/historial:
  *   post:
  *     summary: Registra un cambio de estado en el historial y actualiza el estado de la inscripción
+ *     description: |
+ *       Con estadoNuevo 'cancelada' sigue la misma lógica que DELETE: libera el cupo y la respuesta
+ *       incluye cupoLiberado; si ya estaba cancelada responde 200 (Cancelacion) sin liberar otra vez.
+ *       Sobre una inscripción cancelada, cualquier otro estadoNuevo -> 422 CambioNoPermitido
+ *       (para reactivar se usa POST /api/inscripciones, que reserva cupo).
  *     tags: [Historial]
  *     parameters:
  *       - $ref: '#/components/parameters/InscripcionId'
@@ -225,17 +266,27 @@ router.post('/:id/notas', addNota);
  *               estadoNuevo: { type: string, example: 'retirada' }
  *               motivo: { type: string, example: 'Solicitud del estudiante' }
  *     responses:
+ *       200:
+ *         description: La inscripción ya estaba cancelada (no se liberó cupo de nuevo)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Cancelacion' }
  *       201:
- *         description: Registro de historial creado
+ *         description: Registro de historial creado (con cupoLiberado si estadoNuevo es 'cancelada')
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/HistorialEstado' }
  *       400:
- *         description: Datos inválidos
+ *         $ref: '#/components/responses/Error400'
  *       404:
- *         description: Inscripción no encontrada
+ *         $ref: '#/components/responses/Error404'
+ *       422:
+ *         description: CambioNoPermitido (reactivar una inscripción cancelada)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
  *       500:
- *         description: Error interno del servidor
+ *         $ref: '#/components/responses/Error500'
  */
 router.post('/:id/historial', addHistorial);
 

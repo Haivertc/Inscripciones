@@ -36,8 +36,99 @@ const options = {
           description: 'ID del registro de historial (ObjectId de MongoDB)',
           example: '665f1c2e8b1e4a001234567a',
         },
+        IdempotencyKey: {
+          in: 'header',
+          name: 'Idempotency-Key',
+          required: false,
+          schema: { type: 'string', maxLength: 100 },
+          description:
+            'Clave única por intento (p. ej. un UUID). Si se reintenta con la misma clave se devuelve la inscripción ya creada (201 + Idempotent-Replayed: true) sin volver a reservar cupo.',
+          example: '3f2a1c4e-9b7d-4e21-8a55-0c6d2b1f7e90',
+        },
+      },
+      responses: {
+        Error400: {
+          description: 'Datos inválidos (ValidacionFallida)',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        },
+        Error404: {
+          description: 'No encontrado (InscripcionNoExiste, NotaNoExiste, HistorialNoExiste)',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        },
+        Error500: {
+          description: 'Error interno (ErrorInterno)',
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        },
+        Error503: {
+          description:
+            'ServicioNoDisponible: Estudiantes o Materias no respondieron (timeout, error de red o 5xx), o la base de Inscripciones falló. El mensaje indica cuál.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/Error' },
+              example: {
+                message: 'El módulo Materias no está disponible (timeout). Intenta de nuevo más tarde.',
+                errorType: 'ServicioNoDisponible',
+              },
+            },
+          },
+        },
       },
       schemas: {
+        Error: {
+          type: 'object',
+          required: ['message', 'errorType'],
+          properties: {
+            message: { type: 'string', example: 'El curso MAT-101 no tiene cupos disponibles' },
+            errorType: {
+              type: 'string',
+              enum: [
+                'ValidacionFallida',
+                'InscripcionNoExiste',
+                'NotaNoExiste',
+                'HistorialNoExiste',
+                'RutaNoExiste',
+                'IdempotencyKeyReutilizada',
+                'EstudianteNoExiste',
+                'EstudianteInactivo',
+                'CursoNoExiste',
+                'CursoInactivo',
+                'CupoAgotado',
+                'InscripcionDuplicada',
+                'CambioNoPermitido',
+                'ServicioNoDisponible',
+                'ErrorInterno',
+              ],
+              example: 'CupoAgotado',
+            },
+          },
+        },
+        Cancelacion: {
+          type: 'object',
+          description: 'Inscripción cancelada (mismos campos que Inscripcion) más el resultado de liberar el cupo',
+          allOf: [
+            {
+              type: 'object',
+              properties: {
+                message: { type: 'string', example: 'Inscripción cancelada correctamente' },
+              },
+            },
+            { $ref: '#/components/schemas/Inscripcion' },
+            {
+              type: 'object',
+              properties: {
+                cupoLiberado: {
+                  type: 'boolean',
+                  description:
+                    'true si Materias devolvió el cupo. false si falló (queda registrado CompensacionFallida para repararlo a mano) o si la inscripción ya estaba cancelada.',
+                },
+                yaCancelada: {
+                  type: 'boolean',
+                  description: 'true si ya estaba cancelada: no se liberó cupo otra vez',
+                },
+              },
+            },
+          ],
+        },
         Nota: {
           type: 'object',
           properties: {
