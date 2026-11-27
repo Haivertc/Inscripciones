@@ -8,7 +8,8 @@ Modo por defecto (último cupo):
 
 Modo --idempotencia:
     Envía 2 veces la MISMA inscripción con la MISMA Idempotency-Key y verifica que
-    exista una sola fila y que el cupo se haya descontado una sola vez.
+    exista una sola fila, que el cupo se haya descontado una sola vez y que la segunda
+    respuesta traiga Idempotent-Replayed: true (con --simultaneo: exactamente una de las dos).
 
 Uso:
     python scripts/prueba_ultimo_cupo.py --gateway-url http://localhost:8080 \\
@@ -173,17 +174,26 @@ def modo_idempotencia(cliente, args):
 
     ambos_201 = r1["status"] == 201 and r2["status"] == 201
     mismo_id = ambos_201 and r1["body"].get("_id") == r2["body"].get("_id")
-    replica = "true" in (r1.get("replayed"), r2.get("replayed"))
+    replays = [r.get("replayed") == "true" for r in (r1, r2)]
+    if args.simultaneo:
+        # Los dos salen a la vez: no hay un "segundo" definido; exactamente uno debe ser la réplica
+        replica = replays.count(True) == 1
+        descripcion_replica = "exactamente una respuesta con Idempotent-Replayed: true"
+    else:
+        replica = replays == [False, True]
+        descripcion_replica = "la segunda respuesta con Idempotent-Replayed: true"
 
-    if not replica and 409 in (r1["status"], r2["status"]):
-        print("AVISO: un envío recibió 409 en lugar de la réplica. Si se llama por el Gateway, revisa que "
-              "reenvíe el encabezado Idempotency-Key (y devuelva Idempotent-Replayed).")
-    if ambos_201 and not replica:
-        print("AVISO: no llegó Idempotent-Replayed: true; el Gateway podría no reenviar ese encabezado.")
+    if not replica:
+        print(f"FALLO: se esperaba {descripcion_replica} (llegó {r1.get('replayed')!r}, {r2.get('replayed')!r}).")
+        if 409 in (r1["status"], r2["status"]):
+            print("  Un envío recibió 409 en lugar de la réplica. Si se llama por el Gateway, revisa que "
+                  "reenvíe el encabezado Idempotency-Key (y devuelva Idempotent-Replayed).")
+        elif ambos_201:
+            print("  Ambos 201 pero sin el encabezado: el Gateway podría no reenviar Idempotent-Replayed.")
 
-    ok = filas == 1 and cupo_final == cupo_inicial - 1 and ambos_201 and mismo_id
+    ok = filas == 1 and cupo_final == cupo_inicial - 1 and ambos_201 and mismo_id and replica
     print("RESULTADO:", "OK" if ok else "FALLO",
-          "(1 fila, cupo descontado una vez, misma inscripción en ambas respuestas)")
+          f"(1 fila, cupo descontado una vez, misma inscripción en ambas respuestas, {descripcion_replica})")
     return ok
 
 
