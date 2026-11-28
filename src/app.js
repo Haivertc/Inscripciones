@@ -6,12 +6,17 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const inscripcionesRoutes = require('./routes/inscripciones.routes');
 const { ERRORES, responderError } = require('./utils/errores');
+const { datalakeLog, datalakeLogTrasError } = require('./middlewares/datalakeLog');
 
 const app = express();
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+// Datalake: una línea JSON por petición (+ x-trace-id). La segunda variante cubre
+// las peticiones en las que express.json() falla (JSON inválido o demasiado grande).
+app.use(datalakeLog);
+app.use(datalakeLogTrasError);
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 // Health check

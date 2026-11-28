@@ -7,6 +7,10 @@ const path = require('node:path');
 
 const { crearFakePrisma } = require('./helpers/fakePrisma');
 const { crearEstudiantesFalso, crearMateriasFalso, urlSinServidor } = require('./helpers/fakeModulos');
+const { crearCaptura } = require('./helpers/capturaDlk');
+
+// Las líneas DLK del datalake se prueban en datalake.test.js; aquí solo se silencian
+const capturaDlk = crearCaptura();
 
 process.env.NODE_ENV = 'test';
 
@@ -42,6 +46,7 @@ before(async () => {
 
 after(async () => {
   console.error = originalConsoleError;
+  capturaDlk.restaurar();
   for (const s of [servidorApp, estudiantes.servidor, materias.servidor]) {
     s.closeAllConnections();
     await new Promise((r) => s.close(r));

@@ -13,10 +13,12 @@ const escuchar = (servidor) =>
 
 // modo: 'normal' | 'colgado' (no responde nunca) | 'error500'
 const crearEstudiantesFalso = () => {
-  const estado = { estudiantes: new Map(), modo: 'normal', llamadas: 0 };
+  // recibidas: { metodo, url, headers } de cada petición (para verificar la propagación)
+  const estado = { estudiantes: new Map(), modo: 'normal', llamadas: 0, recibidas: [] };
 
   const servidor = http.createServer((req, res) => {
     estado.llamadas += 1;
+    estado.recibidas.push({ metodo: req.method, url: req.url, headers: req.headers });
     if (estado.modo === 'colgado') return; // deja la conexión abierta sin responder
     if (estado.modo === 'error500') return responder(res, 500, { mensaje: 'falla' });
 
@@ -39,9 +41,11 @@ const crearMateriasFalso = () => {
     modoReservar: 'normal',
     modoLiberar: 'normal',
     llamadas: { get: 0, reservar: 0, liberar: 0 },
+    recibidas: [], // { metodo, url, headers }
   };
 
   const servidor = http.createServer((req, res) => {
+    estado.recibidas.push({ metodo: req.method, url: req.url, headers: req.headers });
     const m = req.url.match(/^\/api\/materias\/cursos\/([^/]+)(\/reservar-cupo|\/liberar-cupo)?$/);
     if (!m) return responder(res, 404, { message: 'ruta', errorType: 'RutaNoExiste' });
     const id = decodeURIComponent(m[1]);

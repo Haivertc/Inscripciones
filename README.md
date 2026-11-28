@@ -28,6 +28,8 @@ npm run db:deploy           # aplica prisma/migrations (npx prisma migrate deplo
 | `DATABASE_URL` | Cadena de conexión PostgreSQL. En RDS agregar `&sslmode=require`. |
 | `ESTUDIANTES_URL` | URL base del módulo Estudiantes, sin `/` final (local: `http://localhost:3001`). Llamada **directa**, no por el Gateway. |
 | `MATERIAS_URL` | URL base del módulo Materias, sin `/` final (local: `http://localhost:3002`). Llamada **directa**, no por el Gateway. |
+| `LOG_DIR` | Opcional. Carpeta donde, además de stdout, se agregan las líneas del datalake (ver [Datalake](#datalake-log-de-peticiones)). |
+| `HOSTNAME` | Opcional. Campo `instance` del datalake (por defecto `local`); en contenedores lo pone Docker. |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Solo para el contenedor local de `docker-compose.yml`. |
 
 Si falta `ESTUDIANTES_URL` o `MATERIAS_URL` el servicio arranca con una advertencia, pero `POST /api/inscripciones` responderá `503`.
@@ -156,11 +158,44 @@ Si devuelve filas, la migración **falla a propósito** con el mensaje
 2. Marca la migración fallida como revertida: `npx prisma migrate resolve --rolled-back 20261126120000_consistencia_cupos`
 3. Vuelve a aplicarla: `npm run db:deploy`
 
+## Datalake (log de peticiones)
+
+[src/middlewares/datalakeLog.js](src/middlewares/datalakeLog.js) escribe **una línea por petición atendida**,
+al terminar de responder, con el mismo contrato que el resto de módulos:
+
+- Por stdout: `DLK ` + JSON compacto. Ejemplo:
+  ```
+  DLK {"ts":"2026-11-28T00:12:23.618Z","service":"inscripciones","instance":"insc-local-1","trace_id":"9f1c2b7a4e6d8031","method":"GET","path":"/api/inscripciones","query":"pageSize=2&sortBy=createdAt","status":200,"latency_ms":26,"user_id":"6a1f0c2e9b3d4a0012345678","role":"admin","idempotency_key":null,"error_type":null,"request_body":null}
+  ```
+- Si existe `LOG_DIR`: la misma línea, sin prefijo, se agrega a `LOG_DIR/inscripciones-<instance>-AAAAMMDD-HH.jsonl` (hora UTC de `ts`).
+
+| Campo | Origen |
+|---|---|
+| `ts` | Llegada de la petición, UTC ISO 8601 con milisegundos |
+| `service` / `instance` | `inscripciones` / `HOSTNAME` o `local` |
+| `trace_id` | Encabezado `x-trace-id` recibido o 16 hex aleatorios; se devuelve siempre en la respuesta |
+| `method`, `path`, `query` | Ruta real sin query string; query sin `?` o `null` |
+| `status`, `latency_ms` | Código final; ms enteros desde la llegada hasta el fin de la respuesta |
+| `user_id`, `role` | Encabezados `x-user-id` / `x-user-role` (los pone el Gateway) |
+| `idempotency_key` | Encabezado `Idempotency-Key` |
+| `error_type` | `res.locals.errorType` (el `errorType` de la respuesta de error) |
+| `request_body` | Objeto JSON; `"<no-json>"` (multipart, binario o JSON inválido); `"<demasiado-grande>"` (> 16 KB); `"<omitido>"` en `/api/auth/login` y `/api/auth/registro`; `null` sin cuerpo |
+
+No se registran `/health`, `/actuator/**` ni la documentación (`/api-docs`, `/swagger`), aunque sí llevan `x-trace-id`.
+El log nunca rompe ni demora la petición: se escribe después de responder y todo va en `try/catch`.
+
+**Trazabilidad entre módulos**: las llamadas a Estudiantes y Materias reenvían `x-trace-id`,
+`x-user-id` y `x-user-role` de la petición original (con `AsyncLocalStorage`, ver
+[src/utils/contextoPeticion.js](src/utils/contextoPeticion.js)). Los eventos `ReservaIncierta` y
+`CompensacionFallida` también llevan `trace_id`.
+
 ## Pruebas
 
 ```bash
 npm test
 ```
+
+`test/datalake.test.js` cubre la línea del datalake y la propagación de encabezados.
 
 Usa `node:test` sin base de datos ni otros módulos: Prisma se reemplaza por uno en memoria
 (`test/helpers/fakePrisma.js`, que reproduce los índices únicos y `P2002`) y Estudiantes y
